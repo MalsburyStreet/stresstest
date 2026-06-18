@@ -244,11 +244,23 @@ let current = 'landing';
 
 function go(screen) {
   current = screen;
+  ensureReady(screen);
   // regenerate downstream outputs when entering a results screen
   if (screen === 'scenarios' || screen === 'map' || screen === 'plan' || screen === 'export') ENGINE.regenerate(state);
   render();
   autosave();
   window.scrollTo({ top: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+}
+/* Jumping straight to a later step (out of sequence) shouldn't show an empty screen:
+   seed driving forces from the current situation/domain if none exist yet. */
+function ensureReady(screen) {
+  const needsForces = ['forces', 'scenarios', 'map', 'plan', 'export'].includes(screen);
+  if (needsForces && state.forces.length === 0) {
+    state.forces = ENGINE.discoverForces(state);
+    if (!state.sensitive || !state.sensitive.length) {
+      state.sensitive = ENGINE.detectSensitive([state.fields.planningFor, state.fields.worry, state.fields.affected].join(' '));
+    }
+  }
 }
 
 function stepIndex(id) { return STEPS.findIndex(s => s.id === id); }
@@ -282,9 +294,10 @@ function topbar() {
 }
 
 function stepper(idx) {
+  // every step is directly clickable (out-of-sequence navigation for QA / free exploration)
   return `<nav class="stepper" aria-label="Progress">
     ${STEPS.map((s, i) => `
-      <button class="step ${i === idx ? 'active' : ''} ${i < idx ? 'done' : ''}" data-step="${s.id}" ${i > idx ? 'disabled' : ''}>
+      <button class="step ${i === idx ? 'active' : ''} ${i < idx ? 'done' : ''}" data-step="${s.id}">
         <span class="step-num">${i < idx ? '✓' : i + 1}</span><span class="step-label">${s.label}</span>
       </button>`).join('<span class="step-sep"></span>')}
   </nav>`;
